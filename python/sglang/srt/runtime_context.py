@@ -358,6 +358,13 @@ class ForwardFlags:
     _DEFAULTS = {
         "multi_stream": False,
         "moe_output_buffer": None,
+        # Attention-TP input-scattering (set per forward by
+        # AttnTpContext.maybe_input_scattered / set_attn_inputs).
+        "attn_input_scattered": False,
+        "attn_inputs": None,
+        # Sticky across forwards within a thread: every ForwardBatch
+        # construction writes it; graph runners force False around capture.
+        "is_extend_in_batch": False,
     }
 
     __slots__ = ("_vars",)

@@ -562,6 +562,43 @@ class TestForwardFlags(_IsolatedServerArgs):
             self.assertTrue(do_multi_stream())
         self.assertFalse(do_multi_stream())
 
+    def test_attn_tp_context_per_forward_slots(self):
+        from types import SimpleNamespace
+
+        from sglang.srt.layers.communicator import get_attn_tp_context
+        from sglang.srt.runtime_context import get_forward
+
+        reset_context()
+        ctx = get_attn_tp_context()
+        self.assertFalse(ctx.input_scattered)
+        fb = SimpleNamespace(
+            forward_mode=SimpleNamespace(
+                is_extend=lambda: False, is_target_verify=lambda: False
+            ),
+            input_ids=None,
+            can_run_tbo=False,
+        )
+        sentinel = SimpleNamespace(fetch_qkv_latent=lambda: "qkv")
+        with ctx.maybe_input_scattered(fb):
+            ctx.set_attn_inputs(sentinel)
+            self.assertEqual(ctx.fetch_qkv_latent(), "qkv")
+        # attn inputs are cleared at scope exit, flag restored
+        self.assertIsNone(get_forward().attn_inputs)
+        self.assertFalse(ctx.input_scattered)
+
+    def test_is_extend_in_batch_sticky_within_thread(self):
+        from sglang.srt.layers.dp_attention import (
+            get_is_extend_in_batch,
+            set_is_extend_in_batch,
+        )
+
+        reset_context()
+        self.assertFalse(get_is_extend_in_batch())
+        set_is_extend_in_batch(True)
+        self.assertTrue(get_is_extend_in_batch())  # sticky until next write
+        set_is_extend_in_batch(False)
+        self.assertFalse(get_is_extend_in_batch())
+
     def test_moe_output_buffer_ctx(self):
         from sglang.srt.layers.moe.moe_runner.base import moe_output_buffer_ctx
         from sglang.srt.runtime_context import get_forward
